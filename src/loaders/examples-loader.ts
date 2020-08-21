@@ -42,7 +42,33 @@ export default function examplesLoader(this: Rsg.StyleguidistLoaderContext, sour
 	// because webpack changes its name to something like __webpack__require__().
 	const allCodeExamples = filter(examples, { type: 'code' });
 	const requiresFromExamples = allCodeExamples.reduce((requires: string[], example) => {
-		return requires.concat(getImports(example.content));
+		// If using separate example tabs for React and Vanilla, treat the content
+		// as two separate contents so the acorn JSX parser doesn't error out
+		// If acorn tries to parse the example as one JSX file, it will see the JSX as
+		// incorrect since the two examples will look like adjacent JSX which is incorrect JSX syntax
+		const reactRegex = new RegExp(
+			/(?:\/\* react-code-start \*\/)([^]+)(?:\/\* react-code-end \*\/)/,
+			'i'
+		);
+		const vanillaRegex = new RegExp(
+			/(?:\/\* vanilla-code-start \*\/)([^]+)(?:\/\* vanilla-code-end \*\/)/,
+			'i'
+		);
+		const reactCodeMatch = example.content.match(reactRegex);
+		const vanillaCodeMatch = example.content.match(vanillaRegex);
+		let additionalRequires: string[] = [];
+		if (!reactCodeMatch && !vanillaCodeMatch) {
+			additionalRequires = requires.concat(getImports(example.content));
+		} else if (reactCodeMatch && vanillaCodeMatch) {
+			additionalRequires = requires.concat(getImports(reactCodeMatch[1]));
+			additionalRequires = additionalRequires.concat(getImports(vanillaCodeMatch[1]));
+		} else if (!reactCodeMatch && vanillaCodeMatch) {
+			additionalRequires = requires.concat(getImports(vanillaCodeMatch[1]));
+		} else if (reactCodeMatch && !vanillaCodeMatch) {
+			additionalRequires = requires.concat(getImports(reactCodeMatch[1]));
+		}
+
+		return additionalRequires;
 	}, []);
 
 	// Auto imported modules.
